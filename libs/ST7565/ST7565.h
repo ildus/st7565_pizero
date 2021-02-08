@@ -87,6 +87,7 @@ public:
     ST7565(int8_t SID, int8_t SCLK, int8_t A0, int8_t RST, int8_t CS1, int8_t CS2)
         : sid(SID), sclk(SCLK), a0(A0), rst(RST), cs1(CS1), cs2(CS2)
     {
+        clear();
     }
 
     void init();
@@ -101,11 +102,11 @@ public:
     void setPixel(uint8_t x, uint8_t y, uint8_t color, bool updateBox = true);
     uint8_t getPixel(uint8_t x, uint8_t y);
     void fillcircle(uint8_t x0, uint8_t y0, uint8_t r, uint8_t color);
-    void drawcircle(uint8_t x0, uint8_t y0, uint8_t r, uint8_t color);
-    void drawrect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t color);
-    void fillrect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t color);
-    void drawline(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t color);
-    void drawchar(uint8_t x, uint8_t line, char c);
+    void drawCircle(uint8_t x0, uint8_t y0, uint8_t r, uint8_t color);
+    void drawRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t color);
+    void fillRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t color);
+    void drawLine(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t color);
+    void drawChar(uint8_t x, uint8_t line, char c);
     void drawString(uint8_t x, uint8_t line, char * c);
     void drawStringP(uint8_t x, uint8_t line, const char * c);
 
@@ -117,5 +118,6 @@ private:
 
     void setPixelInternal(uint8_t x, uint8_t y, uint8_t color);
 
-    // uint8_t buffer[128*64/8];
+    // the memory buffer for the LCD
+    uint8_t lcd_buffer[1024];
 };
