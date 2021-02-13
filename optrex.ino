@@ -46,7 +46,8 @@ void setup()
     glcd.fillRect(7, 7, 6, 6, BLACK);
     glcd.drawCircle(25, 8, 5, BLACK);
     glcd.drawLine(15, 15, 20, 20, BLACK);
-    glcd.drawString(1, 3, const_cast<char*>("Eldar!!!!"));
+    glcd.drawString(1, 3, const_cast<char*>("hey!!!!"));
+    glcd.display(); // show the changes to the buffer
     delay(5000);
 	testdrawbitmap(logo16_glcd_bmp, 16, 16);
     glcd.display(); // show the changes to the buffer
