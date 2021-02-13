@@ -41,12 +41,10 @@ public domain.
 
 #include "ST7565.h"
 
-#define ST7565_STARTBYTES 0
-
 uint8_t is_reversed = 1;
 
 // a handy reference to where the pages are on the screen
-const uint8_t pagemap[] = {7, 6, 5, 4, 3, 2, 1, 0};
+const uint8_t pagemap[] = {0, 1, 2, 3, 4, 5, 6, 7};
 
 // a 5x7 font table
 const extern uint8_t PROGMEM font[];
@@ -113,17 +111,18 @@ void ST7565::drawString(uint8_t x, uint8_t line, char * c)
             line++;
         }
         if (line >= (LCDHEIGHT / 8))
-            return; // ran out of space :(
+            break; // ran out of space :(
     }
 }
 
 void ST7565::drawStringP(uint8_t x, uint8_t line, const char * str)
 {
-    while (1)
+    while (true)
     {
         char c = pgm_read_byte(str++);
         if (!c)
-            return;
+            break;
+
         drawChar(x, line, c);
         x += 6; // 6 pixels wide
         if (x + 6 >= LCDWIDTH)
@@ -132,7 +131,7 @@ void ST7565::drawStringP(uint8_t x, uint8_t line, const char * str)
             line++;
         }
         if (line >= (LCDHEIGHT / 8))
-            return; // ran out of space :(
+            break; // ran out of space :(
     }
 }
 
@@ -140,7 +139,7 @@ void ST7565::drawChar(uint8_t x, uint8_t line, char c)
 {
     for (uint8_t i = 0; i < 5; i++)
     {
-        lcd_buffer[x + (line * 128)] = reverse(pgm_read_byte(font + (c * 5) + i));
+        lcd_buffer[x + (line * 128)] = pgm_read_byte(font + (c * 5) + i);
         x++;
     }
 
@@ -240,8 +239,8 @@ void ST7565::drawCircle(uint8_t x0, uint8_t y0, uint8_t r, uint8_t color)
     updateBoundingBox(x0 - r, y0 - r, x0 + r, y0 + r);
 
     int8_t f = 1 - r;
-    int8_t ddF_x = 1;
-    int8_t ddF_y = -2 * r;
+    int8_t ddf_x = 1;
+    int8_t ddf_y = -2 * r;
     int8_t x = 0;
     int8_t y = r;
 
@@ -255,12 +254,12 @@ void ST7565::drawCircle(uint8_t x0, uint8_t y0, uint8_t r, uint8_t color)
         if (f >= 0)
         {
             y--;
-            ddF_y += 2;
-            f += ddF_y;
+            ddf_y += 2;
+            f += ddf_y;
         }
         x++;
-        ddF_x += 2;
-        f += ddF_x;
+        ddf_x += 2;
+        f += ddf_x;
 
         setPixelInternal(x0 + x, y0 + y, color);
         setPixelInternal(x0 - x, y0 + y, color);
@@ -279,8 +278,8 @@ void ST7565::fillcircle(uint8_t x0, uint8_t y0, uint8_t r, uint8_t color)
     updateBoundingBox(x0 - r, y0 - r, x0 + r, y0 + r);
 
     int8_t f = 1 - r;
-    int8_t ddF_x = 1;
-    int8_t ddF_y = -2 * r;
+    int8_t ddf_x = 1;
+    int8_t ddf_y = -2 * r;
     int8_t x = 0;
     int8_t y = r;
 
@@ -294,12 +293,12 @@ void ST7565::fillcircle(uint8_t x0, uint8_t y0, uint8_t r, uint8_t color)
         if (f >= 0)
         {
             y--;
-            ddF_y += 2;
-            f += ddF_y;
+            ddf_y += 2;
+            f += ddf_y;
         }
         x++;
-        ddF_x += 2;
-        f += ddF_x;
+        ddf_x += 2;
+        f += ddf_x;
 
         for (uint8_t i = y0 - y; i <= y0 + y; i++)
         {
@@ -415,6 +414,7 @@ void ST7565::init()
 
     // set up a bounding box for screen updates
 
+    clearDisplay();
     updateBoundingBox(0, 0, LCDWIDTH - 1, LCDHEIGHT - 1);
 }
 
@@ -494,13 +494,16 @@ void ST7565::display()
         maxcol = LCDWIDTH - 1;
 #endif
 
-        sendCommand(CMD_SET_COLUMN_LOWER | ((col + ST7565_STARTBYTES) & 0xf));
-        sendCommand(CMD_SET_COLUMN_UPPER | (((col + ST7565_STARTBYTES) >> 4) & 0x0F));
+        sendCommand(CMD_SET_COLUMN_LOWER | (col & 0xf));
+        sendCommand(CMD_SET_COLUMN_UPPER | ((col >> 4) & 0x0F));
         sendCommand(CMD_RMW);
 
         for (; col <= maxcol; col++)
         {
-            sendData(lcd_buffer[(128 * p) + col]);
+            if (is_reversed)
+                sendData(reverse(lcd_buffer[(128 * p) + col]));
+            else
+                sendData(lcd_buffer[(128 * p) + col]);
         }
     }
 

@@ -106,9 +106,9 @@ public:
     void drawRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t color);
     void fillRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t color);
     void drawLine(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t color);
-    void drawChar(uint8_t x, uint8_t line, char c);
-    void drawString(uint8_t x, uint8_t line, char * c);
-    void drawStringP(uint8_t x, uint8_t line, const char * c);
+    void drawChar(uint8_t, uint8_t, char);
+    void drawString(uint8_t, uint8_t, char *);
+    void drawStringP(uint8_t, uint8_t, const char *);
 
     void drawbitmap(uint8_t x, uint8_t y, const uint8_t * bitmap, uint8_t w, uint8_t h, uint8_t color);
 

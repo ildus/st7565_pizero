@@ -4,11 +4,12 @@
 int freeRam();
 void testdrawbitmap(const uint8_t * bitmap, uint8_t w, uint8_t h);
 
-// pin 9 - Serial data out (SID)
-// pin 8 - Serial clock out (SCLK)
-// pin 7 - Data/Command select (RS or A0)
-// pin 6 - LCD reset (RST)
-// pin 5 - LCD chip select (CS)
+// pin 22 - Serial data out (SID)
+// pin 24 - Serial clock out (SCLK)
+// pin 26 - Data/Command select (RS or A0)
+// pin 28 - LCD reset (RST)
+// pin 30 - LCD chip select (CS1)
+// pin 23 - LCD chip select (CS2)
 ST7565 glcd(22, 24, 26, 28, 30, 23);
 
 #define LOGO16_GLCD_HEIGHT 16
@@ -46,6 +47,8 @@ void setup()
     glcd.drawCircle(25, 8, 5, BLACK);
     glcd.drawLine(15, 15, 20, 20, BLACK);
     glcd.drawString(1, 3, const_cast<char*>("Eldar!!!!"));
+    delay(5000);
+	testdrawbitmap(logo16_glcd_bmp, 16, 16);
     glcd.display(); // show the changes to the buffer
     delay(2000);
 }
