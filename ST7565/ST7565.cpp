@@ -23,21 +23,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 public domain.
 */
 
-//#include <Wire.h>
-#ifdef __AVR__
-#    include <avr/pgmspace.h>
-#    include <util/delay.h>
-#endif
-
-#ifndef _delay_ms
-#    define _delay_ms(t) delay(t)
-#endif
+#include <bits/stdint-uintn.h>
 
 #ifndef _BV
 #    define _BV(bit) (1 << (bit))
 #endif
 
 #include <stdlib.h>
+#include <cstring>
 
 #include "ST7565.h"
 
@@ -47,7 +40,7 @@ uint8_t is_reversed = 1;
 const uint8_t pagemap[] = {0, 1, 2, 3, 4, 5, 6, 7};
 
 // a 5x7 font table
-const extern uint8_t PROGMEM font[];
+const extern uint8_t font[];
 
 // reduces how much is refreshed, which speeds it up!
 // originally derived from Steve Evans/JCW's mod but cleaned up and
@@ -88,7 +81,7 @@ void ST7565::drawbitmap(uint8_t x, uint8_t y, const uint8_t * bitmap, uint8_t w,
     {
         for (uint8_t i = 0; i < w; i++)
         {
-            if (pgm_read_byte(bitmap + i + (j / 8) * w) & _BV(j % 8))
+            if (bitmap[i + (j / 8) * w] & _BV(j % 8))
             {
                 setPixelInternal(x + i, y + j, color);
             }
@@ -119,7 +112,7 @@ void ST7565::drawStringP(uint8_t x, uint8_t line, const char * str)
 {
     while (true)
     {
-        char c = pgm_read_byte(str++);
+        char c = *str++;
         if (!c)
             break;
 
@@ -139,7 +132,7 @@ void ST7565::drawChar(uint8_t x, uint8_t line, char c)
 {
     for (uint8_t i = 0; i < 5; i++)
     {
-        lcd_buffer[x + (line * 128)] = pgm_read_byte(font + (c * 5) + i);
+        lcd_buffer[x + (line * 128)] = font[(c * 5) + i];
         x++;
     }
 
@@ -347,63 +340,46 @@ void ST7565::begin(uint8_t contrast)
 {
     clear();
     init();
-    sendCommand(CMD_DISPLAY_ON);
-    sendCommand(CMD_SET_ALLPTS_NORMAL);
+    lcd_io.sendCommand(CMD_DISPLAY_ON);
+    lcd_io.sendCommand(CMD_SET_ALLPTS_NORMAL);
     setBrightness(contrast);
 }
 
 void ST7565::init()
 {
-    // set pin directions
-    pinMode(sid, OUTPUT);
-    pinMode(sclk, OUTPUT);
-    pinMode(a0, OUTPUT);
-    pinMode(rst, OUTPUT);
-    pinMode(cs1, OUTPUT);
-    pinMode(cs2, OUTPUT);
-
-    // toggle RST low to reset; CS low so it'll listen to us
-    if (cs1 > 0)
-        digitalWrite(cs1, LOW);
-
-    if (cs2 > 0)
-        digitalWrite(cs2, HIGH);
-
-    digitalWrite(rst, LOW);
-    _delay_ms(500);
-    digitalWrite(rst, HIGH);
+    lcd_io.lcdReset();
 
     // LCD bias select
-    sendCommand(CMD_SET_BIAS_7); // 0xA3
+    lcd_io.sendCommand(CMD_SET_BIAS_7); // 0xA3
     // ADC select
-    sendCommand(CMD_SET_ADC_NORMAL); // 0xA0
+    lcd_io.sendCommand(CMD_SET_ADC_NORMAL); // 0xA0
     // SHL select
-    sendCommand(CMD_SET_COM_NORMAL); // 0xC0
+    lcd_io.sendCommand(CMD_SET_COM_NORMAL); // 0xC0
     // ReadModifyWrite clear
-    sendCommand(CMD_RMW_CLEAR); // 0xEE *
+    lcd_io.sendCommand(CMD_RMW_CLEAR); // 0xEE *
     // Display normal
-    sendCommand(CMD_SET_DISP_NORMAL); // 0xA6 *
+    lcd_io.sendCommand(CMD_SET_DISP_NORMAL); // 0xA6 *
 
     // Initial display line
-    sendCommand(CMD_SET_DISP_START_LINE); // 0x40
+    lcd_io.sendCommand(CMD_SET_DISP_START_LINE); // 0x40
 
     // turn on voltage converter (VC=1, VR=0, VF=0)
-    sendCommand(CMD_SET_POWER_CONTROL | 0x4); // 0x28 | 0x4
+    lcd_io.sendCommand(CMD_SET_POWER_CONTROL | 0x4); // 0x28 | 0x4
     // wait for 50% rising
-    _delay_ms(50);
+    sleep_ms(50);
 
     // turn on voltage regulator (VC=1, VR=1, VF=0)
-    sendCommand(CMD_SET_POWER_CONTROL | 0x6); // 0x28 | 0x6
+    lcd_io.sendCommand(CMD_SET_POWER_CONTROL | 0x6); // 0x28 | 0x6
     // wait >=50ms
-    _delay_ms(50);
+    sleep_ms(50);
 
     // turn on voltage follower (VC=1, VR=1, VF=1)
-    sendCommand(CMD_SET_POWER_CONTROL | 0x7); // 0x28 | 0x7
+    lcd_io.sendCommand(CMD_SET_POWER_CONTROL | 0x7); // 0x28 | 0x7
     // wait
-    _delay_ms(10);
+    sleep_ms(10);
 
     // set lcd operating voltage (regulator resistor, ref voltage resistor)
-    sendCommand(CMD_SET_RESISTOR_RATIO | 0b110); // 0x20 | 0x6
+    lcd_io.sendCommand(CMD_SET_RESISTOR_RATIO | 0b110); // 0x20 | 0x6
 
     //                end  disp            bright   power              bright
     // 0xA3 0xA0 0xC0 0xEE 0xA6 0xEC 0x37 0x81 0x3B 0x2F --- pause -- 0x81 0x2C
@@ -418,44 +394,10 @@ void ST7565::init()
     updateBoundingBox(0, 0, LCDWIDTH - 1, LCDHEIGHT - 1);
 }
 
-inline void ST7565::spiWrite(uint8_t c)
-{
-#if not defined(_VARIANT_ARDUINO_DUE_X_) && not defined(_VARIANT_ARDUINO_ZERO_)
-    shiftOut(sid, sclk, MSBFIRST, c);
-#else
-    int8_t i;
-    for (i = 7; i >= 0; i--)
-    {
-        digitalWrite(sclk, LOW);
-        delayMicroseconds(5); // need to slow down the data rate for Due and Zero
-        if (c & _BV(i))
-            digitalWrite(sid, HIGH);
-        else
-            digitalWrite(sid, LOW);
-        //      delayMicroseconds(5);      //need to slow down the data rate for Due
-        //      and Zero
-        digitalWrite(sclk, HIGH);
-    }
-#endif
-}
-void ST7565::sendCommand(uint8_t c)
-{
-    digitalWrite(a0, LOW);
-
-    spiWrite(c);
-}
-
-void ST7565::sendData(uint8_t c)
-{
-    digitalWrite(a0, HIGH);
-
-    spiWrite(c);
-}
-
 void ST7565::setBrightness(uint8_t val)
 {
-    sendCommand(CMD_SET_VOLUME_FIRST);
-    sendCommand(CMD_SET_VOLUME_SECOND | (val & 0x3f));
+    lcd_io.sendCommand(CMD_SET_VOLUME_FIRST);
+    lcd_io.sendCommand(CMD_SET_VOLUME_SECOND | (val & 0x3f));
 }
 
 void ST7565::display()
@@ -483,7 +425,7 @@ void ST7565::display()
         }
 #endif
 
-        sendCommand(CMD_SET_PAGE | pagemap[p]);
+        lcd_io.sendCommand(CMD_SET_PAGE | pagemap[p]);
 
 #ifdef enablePartialUpdate
         col = xUpdateMin;
@@ -494,16 +436,16 @@ void ST7565::display()
         maxcol = LCDWIDTH - 1;
 #endif
 
-        sendCommand(CMD_SET_COLUMN_LOWER | (col & 0xf));
-        sendCommand(CMD_SET_COLUMN_UPPER | ((col >> 4) & 0x0F));
-        sendCommand(CMD_RMW);
+        lcd_io.sendCommand(CMD_SET_COLUMN_LOWER | (col & 0xf));
+        lcd_io.sendCommand(CMD_SET_COLUMN_UPPER | ((col >> 4) & 0x0F));
+        lcd_io.sendCommand(CMD_RMW);
 
         for (; col <= maxcol; col++)
         {
             if (is_reversed)
-                sendData(reverse(lcd_buffer[(128 * p) + col]));
+                lcd_io.sendData(reverse(lcd_buffer[(128 * p) + col]));
             else
-                sendData(lcd_buffer[(128 * p) + col]);
+                lcd_io.sendData(lcd_buffer[(128 * p) + col]);
         }
     }
 
@@ -518,7 +460,7 @@ void ST7565::display()
 // clear everything
 void ST7565::clear()
 {
-    memset(lcd_buffer, 0, 1024);
+    std::memset(lcd_buffer, 0, 1024);
     updateBoundingBox(0, 0, LCDWIDTH - 1, LCDHEIGHT - 1);
 }
 
@@ -529,12 +471,12 @@ void ST7565::clearDisplay()
 
     for (p = 0; p < 8; p++)
     {
-        sendCommand(CMD_SET_PAGE | p);
+        lcd_io.sendCommand(CMD_SET_PAGE | p);
         for (c = 0; c < 129; c++)
         {
-            sendCommand(CMD_SET_COLUMN_LOWER | (c & 0xf));
-            sendCommand(CMD_SET_COLUMN_UPPER | ((c >> 4) & 0xf));
-            sendData(0x0);
+            lcd_io.sendCommand(CMD_SET_COLUMN_LOWER | (c & 0xf));
+            lcd_io.sendCommand(CMD_SET_COLUMN_UPPER | ((c >> 4) & 0xf));
+            lcd_io.sendData(0x0);
         }
     }
 }

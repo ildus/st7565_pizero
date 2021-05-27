@@ -1,22 +1,17 @@
+#include <random>
 #include "ST7565.h"
 
 // the LCD backlight is connected up to a pin so you can turn it on & off
 int freeRam();
 void testdrawbitmap(const uint8_t * bitmap, uint8_t w, uint8_t h);
 
-// pin 22 - Serial data out (SID)
-// pin 24 - Serial clock out (SCLK)
-// pin 26 - Data/Command select (RS or A0)
-// pin 28 - LCD reset (RST)
-// pin 30 - LCD chip select (CS1)
-// pin 23 - LCD chip select (CS2)
-ST7565 glcd(22, 24, 26, 28, 30, 23);
+ST7565 glcd;
 
 #define LOGO16_GLCD_HEIGHT 16
 #define LOGO16_GLCD_WIDTH 16
 
 // a bitmap of a 16x16 fruit icon
-const static unsigned char __attribute__((progmem)) logo16_glcd_bmp[] = {
+const static unsigned char logo16_glcd_bmp[] = {
     0x30, 0xf0, 0xf0, 0xf0, 0xf0, 0x30, 0xf8, 0xbe, 0x9f, 0xff, 0xf8, 0xc0, 0xc0, 0xc0, 0x80, 0x00,
     0x20, 0x3c, 0x3f, 0x3f, 0x1f, 0x19, 0x1f, 0x7b, 0xfb, 0xfe, 0xfe, 0x07, 0x07, 0x07, 0x03, 0x00,
 };
@@ -24,15 +19,9 @@ const static unsigned char __attribute__((progmem)) logo16_glcd_bmp[] = {
 // The setup() method runs once, when the sketch starts
 void setup()
 {
-    Serial.begin(9600);
-
-#ifdef __AVR__
-    Serial.print(freeRam());
-#endif
-
     // initialize and set the contrast to 0x3B (almost max)
     glcd.begin(0x3B);
-    delay(1);
+    sleep_ms(1);
     // after a little delay decrease to 0x2C
     glcd.setBrightness(0x2C);
     glcd.clear();
@@ -48,14 +37,17 @@ void setup()
     glcd.drawLine(15, 15, 20, 20, BLACK);
     glcd.drawString(1, 3, const_cast<char*>("hey!!!!"));
     glcd.display(); // show the changes to the buffer
-    delay(5000);
+    sleep_ms(5000);
 	testdrawbitmap(logo16_glcd_bmp, 16, 16);
     glcd.display(); // show the changes to the buffer
-    delay(2000);
+    sleep_ms(2000);
 }
 
-void loop()
+int main()
 {
+    setup();
+    pause();
+    return 0;
 }
 
 #ifdef __AVR__
@@ -86,38 +78,41 @@ int freeRam(void)
 void testdrawbitmap(const uint8_t * bitmap, uint8_t w, uint8_t h)
 {
     uint8_t icons[NUMFLAKES][3];
-    randomSeed(666); // whatever seed
+    std::random_device rd;
+    std::mt19937 mt(rd());
+    std::uniform_int_distribution<int> rand_xpos(0, 127);
+    std::uniform_int_distribution<int> rand_deltay(1, 5);
 
     // initialize
-    for (uint8_t f = 0; f < NUMFLAKES; f++)
+    for (auto & icon : icons)
     {
-        icons[f][XPOS] = random(128);
-        icons[f][YPOS] = 0;
-        icons[f][DELTAY] = random(5) + 1;
+        icon[XPOS] = rand_xpos(mt);
+        icon[YPOS] = 0;
+        icon[DELTAY] = rand_deltay(mt);
     }
 
     while (true)
     {
         // draw each icon
-        for (uint8_t f = 0; f < NUMFLAKES; f++)
+        for (auto & icon : icons)
         {
-            glcd.drawbitmap(icons[f][XPOS], icons[f][YPOS], logo16_glcd_bmp, w, h, BLACK);
+            glcd.drawbitmap(icon[XPOS], icon[YPOS], logo16_glcd_bmp, w, h, BLACK);
         }
         glcd.display();
-        delay(200);
+        sleep_ms(200);
 
         // then erase it + move it
-        for (uint8_t f = 0; f < NUMFLAKES; f++)
+        for (auto & icon : icons)
         {
-            glcd.drawbitmap(icons[f][XPOS], icons[f][YPOS], logo16_glcd_bmp, w, h, 0);
+            glcd.drawbitmap(icon[XPOS], icon[YPOS], logo16_glcd_bmp, w, h, 0);
             // move it
-            icons[f][YPOS] += icons[f][DELTAY];
+            icon[YPOS] += icon[DELTAY];
             // if its gone, reinit
-            if (icons[f][YPOS] > 64)
+            if (icon[YPOS] > 64)
             {
-                icons[f][XPOS] = random(128);
-                icons[f][YPOS] = 0;
-                icons[f][DELTAY] = random(5) + 1;
+                icon[XPOS] = rand_xpos(mt);
+                icon[YPOS] = 0;
+                icon[DELTAY] = rand_deltay(mt);
             }
         }
     }
