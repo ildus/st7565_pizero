@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.16)
 project(optrex)
 
 set (CMAKE_CXX_STANDARD 20)
@@ -18,3 +18,4 @@ add_executable(optrex
     optrex.cpp
 )
 target_link_libraries(optrex PRIVATE bcm2835 st7565)
+target_include_directories(optrex PRIVATE ${st7565_SOURCE_DIR})

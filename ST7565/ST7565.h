@@ -84,70 +84,69 @@ public domain.
 
 #define sleep_ms(ms) usleep((ms) * 1000)
 
+#ifndef _BV
+#    define _BV(bit) (1 << (bit))
+#endif
+
 struct LCDGPIO
 {
+    const int8_t sclk = 11;
+    const int8_t mosi = 10;
+    const int8_t cs1 = 8;
+    const int8_t cs2 = 7;
     int8_t a0, rst;
+
+    int8_t outs[6] = {sclk, mosi, cs1, cs2, a0, rst};
 
 public:
     explicit LCDGPIO(int8_t A0, int8_t RST) : a0(A0), rst(RST)
     {
         if (!bcm2835_init())
-            throw std::runtime_error("bcm2835_init failed. Are you running as root?");
+            throw std::runtime_error("bcm2835_init failed. Probably not enough permissions");
 
-        bcm2835_gpio_set_pud(a0, BCM2835_GPIO_PUD_OFF);
-        bcm2835_gpio_set_pud(rst, BCM2835_GPIO_PUD_OFF);
-        bcm2835_gpio_fsel(a0, BCM2835_GPIO_FSEL_OUTP);
-        bcm2835_gpio_fsel(rst, BCM2835_GPIO_FSEL_OUTP);
-        bcm2835_gpio_clr(a0);
-        bcm2835_gpio_clr(rst);
+        outs[4] = a0;
+        outs[5] = rst;
 
-        if (!bcm2835_spi_begin())
+        for (int8_t pin : outs)
         {
-            throw std::runtime_error("bcm2835_spi_begin failed. Are you running as root?");
+            bcm2835_gpio_set_pud(pin, BCM2835_GPIO_PUD_OFF);
+            bcm2835_gpio_fsel(pin, BCM2835_GPIO_FSEL_OUTP);
+            bcm2835_gpio_clr(pin);
         }
-        bcm2835_spi_setBitOrder(BCM2835_SPI_BIT_ORDER_MSBFIRST);
-        bcm2835_spi_setDataMode(BCM2835_SPI_MODE0);
-        bcm2835_spi_setClockDivider(BCM2835_SPI_CLOCK_DIVIDER_32768);
 
         lcdReset();
     }
 
     ~LCDGPIO()
     {
-        bcm2835_spi_end();
         bcm2835_close();
     }
 
     void lcdReset() const
     {
-        chipSelect(0);
-        bcm2835_spi_setChipSelectPolarity(BCM2835_SPI_CS0, LOW);
-        chipSelect(1);
-        bcm2835_spi_setChipSelectPolarity(BCM2835_SPI_CS1, HIGH);
+        bcm2835_gpio_clr(cs1);
+        bcm2835_gpio_set(cs2);
 
-        // toggle RST low to reset; CS low so it'll listen to us
         bcm2835_gpio_set(rst);
         sleep_ms(500);
         bcm2835_gpio_clr(rst);
     }
 
-    static void chipSelect(int8_t c)
+    inline void spiWrite(uint8_t c) const
     {
-        if (c == 0)
+        int8_t i;
+        for (i = 7; i >= 0; i--)
         {
-            bcm2835_spi_chipSelect(BCM2835_SPI_CS0);
-        }
-        else if (c == 1)
-        {
-            bcm2835_spi_chipSelect(BCM2835_SPI_CS1);
-        }
-        else
-            throw std::runtime_error("invalid chip number " + std::to_string(c));
-    }
+            bcm2835_gpio_clr(sclk);
 
-    inline static void spiWrite(uint8_t c)
-    {
-        bcm2835_spi_transfer(c);
+            usleep(5);
+            if (c & _BV(i))
+                bcm2835_gpio_set(mosi);
+            else
+                bcm2835_gpio_clr(mosi);
+
+            bcm2835_gpio_set(sclk);
+        }
     }
 
 

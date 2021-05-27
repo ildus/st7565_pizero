@@ -25,10 +25,6 @@ public domain.
 
 #include <bits/stdint-uintn.h>
 
-#ifndef _BV
-#    define _BV(bit) (1 << (bit))
-#endif
-
 #include <stdlib.h>
 #include <cstring>
 
