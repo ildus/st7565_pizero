@@ -90,13 +90,7 @@ public domain.
 
 struct LCDGPIO
 {
-    const int8_t sclk = 11;
-    const int8_t mosi = 10;
-    const int8_t cs1 = 8;
-    const int8_t cs2 = 7;
     int8_t a0, rst;
-
-    int8_t outs[6] = {sclk, mosi, cs1, cs2, a0, rst};
 
 public:
     explicit LCDGPIO(int8_t A0, int8_t RST) : a0(A0), rst(RST)
@@ -104,9 +98,10 @@ public:
         if (!bcm2835_init())
             throw std::runtime_error("bcm2835_init failed. Probably not enough permissions");
 
-        outs[4] = a0;
-        outs[5] = rst;
+        if (!bcm2835_spi_begin())
+            throw std::runtime_error("bcm2835_spi_begin failed. Probably not enough permissions");
 
+        int8_t outs[] = {a0, rst};
         for (int8_t pin : outs)
         {
             bcm2835_gpio_set_pud(pin, BCM2835_GPIO_PUD_OFF);
@@ -114,52 +109,37 @@ public:
             bcm2835_gpio_clr(pin);
         }
 
+        bcm2835_spi_setChipSelectPolarity(BCM2835_SPI_CS0, HIGH);
+        bcm2835_spi_setChipSelectPolarity(BCM2835_SPI_CS1, HIGH);
         lcdReset();
     }
 
     ~LCDGPIO()
     {
+        bcm2835_spi_end();
         bcm2835_close();
     }
 
     void lcdReset() const
     {
-        bcm2835_gpio_clr(cs1);
-        bcm2835_gpio_set(cs2);
+        bcm2835_spi_chipSelect(0);
+        bcm2835_spi_chipSelect(1);
 
         bcm2835_gpio_set(rst);
         sleep_ms(500);
         bcm2835_gpio_clr(rst);
     }
 
-    inline void spiWrite(uint8_t c) const
-    {
-        int8_t i;
-        for (i = 7; i >= 0; i--)
-        {
-            bcm2835_gpio_clr(sclk);
-
-            usleep(5);
-            if (c & _BV(i))
-                bcm2835_gpio_set(mosi);
-            else
-                bcm2835_gpio_clr(mosi);
-
-            bcm2835_gpio_set(sclk);
-        }
-    }
-
-
     inline void sendCommand(uint8_t c) const
     {
         bcm2835_gpio_set(a0);
-        spiWrite(c);
+        bcm2835_spi_transfer(c);
     }
 
     inline void sendData(uint8_t c) const
     {
         bcm2835_gpio_clr(a0);
-        spiWrite(c);
+        bcm2835_spi_transfer(c);
     }
 };
 
@@ -168,7 +148,7 @@ class ST7565
     LCDGPIO lcd_io;
 
 public:
-    explicit ST7565(int8_t A0 = 22, int8_t RST = 27) : lcd_io(A0, RST) { clear(); }
+    explicit ST7565(int8_t A0 = 23, int8_t RST = 24) : lcd_io(A0, RST) { clear(); }
 
     void init();
     void begin(uint8_t contrast);
